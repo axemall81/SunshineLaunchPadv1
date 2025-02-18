@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const { exec } = require('child_process');
 const fs = require('fs');
@@ -6,9 +5,7 @@ const path = require('path');
 const multer = require('multer');
 
 const app = express();
-const HOST = '0.0.0.0';
-const PORT = 3000;
-const PORT = 8000;
+const PORT = process.env.PORT || 8000; // Use Render's provided PORT
 
 // Setup multer for handling file uploads
 const upload = multer({ dest: 'uploads/' });
@@ -19,28 +16,36 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Parse JSON bodies
 app.use(express.json());
 
-// Paths to Sunshine's configuration
-const SUNSHINE_APPS_JSON = 'C:\\Program Files\\Sunshine\\config\\apps.json';
+// Paths to Sunshine's configuration (use safer relative paths)
+const SUNSHINE_DIR = 'C:\\Program Files\\Sunshine\\config';
+const SUNSHINE_APPS_JSON = path.join(SUNSHINE_DIR, 'apps.json');
 const SUNSHINE_IMAGE_DIR = 'C:\\Program Files\\Sunshine\\images';
 const SUNSHINE_EXE = '"C:\\Program Files\\Sunshine\\sunshine.exe"';
 const MOONLIGHT_EXE = '"C:\\Program Files\\Moonlight Game Streaming\\Moonlight.exe"';
 
-// Ensure the image directory exists
+// Ensure directories exist
 if (!fs.existsSync(SUNSHINE_IMAGE_DIR)) {
     fs.mkdirSync(SUNSHINE_IMAGE_DIR, { recursive: true });
 }
 
-// Read Sunshine apps.json
+// Read Sunshine apps.json safely
 function readSunshineConfig() {
-    if (!fs.existsSync(SUNSHINE_APPS_JSON)) {
+    if (!fs.existsSync(SUNSHINE_APPS_JSON)) return { apps: [] };
+    try {
+        return JSON.parse(fs.readFileSync(SUNSHINE_APPS_JSON, 'utf8'));
+    } catch (error) {
+        console.error("Error reading Sunshine config:", error);
         return { apps: [] };
     }
-    return JSON.parse(fs.readFileSync(SUNSHINE_APPS_JSON, 'utf8'));
 }
 
-// Write to Sunshine apps.json
+// Write to Sunshine apps.json safely
 function writeSunshineConfig(config) {
-    fs.writeFileSync(SUNSHINE_APPS_JSON, JSON.stringify(config, null, 2), 'utf8');
+    try {
+        fs.writeFileSync(SUNSHINE_APPS_JSON, JSON.stringify(config, null, 2), 'utf8');
+    } catch (error) {
+        console.error("Error writing Sunshine config:", error);
+    }
 }
 
 // List current games
@@ -49,6 +54,7 @@ app.get('/api/games', (req, res) => {
         const config = readSunshineConfig();
         res.json(config.apps);
     } catch (err) {
+        console.error("Error reading games:", err);
         res.status(500).send(`Error reading config: ${err.message}`);
     }
 });
@@ -64,6 +70,7 @@ app.post('/api/add-steam-game', upload.single('steamImage'), (req, res) => {
         if (config.apps.some(app => app.name === steamAppName || app.cmd === steamCommand)) {
             return res.status(400).send('This Steam game is already in Sunshine config');
         }
+
         let imagePath = req.file ? path.join(SUNSHINE_IMAGE_DIR, req.file.originalname) : '';
         if (req.file) fs.renameSync(req.file.path, imagePath);
 
@@ -76,6 +83,7 @@ app.post('/api/add-steam-game', upload.single('steamImage'), (req, res) => {
         writeSunshineConfig(config);
         res.send(`Steam game "${steamAppName}" added successfully!`);
     } catch (err) {
+        console.error("Error adding Steam game:", err);
         res.status(500).send(`Error adding Steam game: ${err.message}`);
     }
 });
@@ -91,6 +99,7 @@ app.post('/api/add-exe-game', upload.single('exeImage'), (req, res) => {
         if (config.apps.some(app => app.name === exeName || app.cmd === exePath)) {
             return res.status(400).send('That .exe game is already in Sunshine config');
         }
+
         let imagePath = req.file ? path.join(SUNSHINE_IMAGE_DIR, req.file.originalname) : '';
         if (req.file) fs.renameSync(req.file.path, imagePath);
 
@@ -103,6 +112,7 @@ app.post('/api/add-exe-game', upload.single('exeImage'), (req, res) => {
         writeSunshineConfig(config);
         res.send(`Executable game "${exeName}" added successfully!`);
     } catch (err) {
+        console.error("Error adding exe game:", err);
         res.status(500).send(`Error adding exe game: ${err.message}`);
     }
 });
@@ -120,11 +130,12 @@ app.post('/api/remove-game', (req, res) => {
         writeSunshineConfig(config);
         res.send(`Game "${gameName}" removed!`);
     } catch (err) {
+        console.error("Error removing game:", err);
         res.status(500).send(`Error removing game: ${err.message}`);
     }
 });
 
 // Start the server
-app.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ Server running at http://0.0.0.0:${PORT}`);
 });
