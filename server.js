@@ -5,6 +5,9 @@ const path = require('path');
 const multer = require('multer');
 
 const app = express();
+
+# Serve static files from the 'public' directory
+app.use(express.static(path.join(__dirname, 'public')));
 const PORT = process.env.PORT || 8000; // Use Render's provided PORT
 
 // Setup multer for handling file uploads
@@ -137,5 +140,10 @@ app.post('/api/remove-game', (req, res) => {
 
 // Start the server
 app.listen(PORT, '0.0.0.0', () => {
+
+# Default Route: Serve index.html when visiting '/'
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
     console.log(`✅ Server running at http://0.0.0.0:${PORT}`);
 });
